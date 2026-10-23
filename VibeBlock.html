@@ -251,14 +251,14 @@
             const startY = e.clientY;
             clone = el.cloneNode(true);
             clone.classList.add('dragging');
-            clone.style.left = (startX - pieceWidthPx / 2) + 'px';
-            clone.style.top = (startY - pieceHeightPx / 2) + 'px';
+            clone.style.left = (startX) + 'px';
+            clone.style.top = (startY) + 'px';
             document.body.appendChild(clone);
 
             const moveHandler = (me) => {
                 // 1. CLONE MOVEMENT: Always fluid, never snaps
-                clone.style.left = (me.clientX - pieceWidthPx / 2) + 'px';
-                clone.style.top = (me.clientY - pieceHeightPx / 2) + 'px';
+                clone.style.left = (me.clientX) + 'px';
+                clone.style.top = (me.clientY) + 'px';
 
                 // 2. GHOST LOGIC: Still calculate the grid position for preview
                 const rect = gridElement.getBoundingClientRect();
