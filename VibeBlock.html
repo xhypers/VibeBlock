@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="default">
+	<meta name="apple-mobile-web-app-title" content="VibeBlock">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VibeBlock</title>
+    <style>
+        :root {
+            --bg-color: #121213;
+            --grid-bg: #1a1a1c;
+            --cell-empty: #2c2c30;
+            --accent-color: #4f46e5;
+            --valid-ghost: rgba(34, 197, 94, 0.5); 
+            --invalid-ghost: rgba(239, 68, 68, 0.3);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+        }
+
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .stats {
+            text-align: center;
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(8, 40px);
+            grid-template-rows: repeat(8, 40px);
+            gap: 5px;
+            background-color: var(--grid-bg);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        .cell {
+            width: 40px;
+            height: 40px;
+            background-color: var(--cell-empty);
+            border-radius: 4px;
+            transition: background-color 0.1s ease;
+        }
+
+        .cell.filled {
+            box-shadow: inset 0 -4px 0 rgba(0,0,0,0.2);
+        }
+
+        .cell.ghost-valid { background-color: var(--valid-ghost) !important; }
+        .cell.ghost-invalid { background-color: var(--invalid-ghost) !important; }
+
+        #piece-dock {
+            display: flex;
+            gap: 30px;
+            height: 150px;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .piece {
+            cursor: grab;
+            display: grid;
+            gap: 2px;
+            position: relative;
+        }
+
+        .block {
+            width: 30px;
+            height: 30px;
+            border-radius: 4px;
+        }
+
+        #game-over {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 18px;
+            cursor: pointer;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .dragging {
+            opacity: 0.9;
+            position: absolute;
+            pointer-events: none;
+            z-index: 1000;
+            transition: left 0.08s ease-out, top 0.08s ease-out; 
+        }
+
+        /* THE FALLING ANIMATION */
+        .falling-block {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+            z-index: 50;
+            pointer-events: none;
+            animation: fallOut 0.6s cubic-bezier(0.5, 0, 1, 1) forwards;
+        }
+
+        @keyframes fallOut {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(800px) rotate(20deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div class="stats">Score: <span id="score">0</span></div>
+        <div id="grid"></div>
+        <div id="piece-dock"></div>
+    </div>
+
+    <div id="game-over">
+        <h1 style="font-size: 48px; margin-bottom: 10px;">Game Over!</h1>
+        <p style="font-size: 24px; margin-bottom: 20px;">Final Score: <span id="final-score">0</span></p>
+        <button onclick="resetGame()">Play Again</button>
+    </div>
+
+<script>
+    const GRID_SIZE = 8;
+    const CELL_PX = 40;
+    const GAP_PX = 5;
+    const TOTAL_UNIT = CELL_PX + GAP_PX;
+
+    const SHAPES = [
+        { color: '#ef4444', coords: [[0,0]] },
+        { color: '#3b82f6', coords: [[0,0], [0,1]] },
+        { color: '#3b82f6', coords: [[0,0], [1,0]] },
+        { color: '#10b981', coords: [[0,0], [0,1], [0,2]] },
+        { color: '#10b981', coords: [[0,0], [1,0], [2,0]] },
+        { color: '#f59e0b', coords: [[0,0], [0,1], [1,0], [1,1]] },
+        { color: '#8b5cf6', coords: [[0,0], [0,1], [0,2], [1,0]] },
+        { color: '#ec4899', coords: [[0,0], [0,1], [1,1], [1,2]] },
+    ];
+
+    let score = 0;
+    let board = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(null));
+    let availablePieces = [];
+
+    const gridElement = document.getElementById('grid');
+    const dockElement = document.getElementById('piece-dock');
+    const scoreElement = document.getElementById('score');
+
+    function init() {
+        createGrid();
+        spawnPieces();
+        updateScore(0);
+    }
+
+    function createGrid() {
+        gridElement.innerHTML = '';
+        for (let r = 0; r < GRID_SIZE; r++) {
+            for (let c = 0; c < GRID_SIZE; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.row = r;
+                cell.dataset.col = c;
+                gridElement.appendChild(cell);
+            }
+        }
+    }
+
+    function spawnPieces() {
+        dockElement.innerHTML = '';
+        availablePieces = [];
+        for (let i = 0; i < 3; i++) {
+            const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+            availablePieces.push(shape);
+            createPieceElement(shape, i);
+        }
+    }
+
+    function createPieceElement(shape, index) {
+        const pieceWrap = document.createElement('div');
+        pieceWrap.className = 'piece';
+        pieceWrap.dataset.index = index;
+        
+        const maxR = Math.max(...shape.coords.map(c => c[0])) + 1;
+        const maxC = Math.max(...shape.coords.map(c => c[1])) + 1;
+        pieceWrap.style.gridTemplateRows = `repeat(${maxR}, 30px)`;
+        pieceWrap.style.gridTemplateColumns = `repeat(${maxC}, 30px)`;
+
+        for (let r = 0; r < maxR; r++) {
+            for (let c = 0; c < maxC; c++) {
+                const block = document.createElement('div');
+                if (shape.coords.some(coord => coord[0] === r && coord[1] === c)) {
+                    block.className = 'block';
+                    block.style.backgroundColor = shape.color;
+                } else {
+                    block.style.backgroundColor = 'transparent';
+                }
+                pieceWrap.appendChild(block);
+            }
+        }
+
+        setupDraggable(pieceWrap, shape, index);
+        dockElement.appendChild(pieceWrap);
+    }
+
+    function setupDraggable(el, shape, index) {
+        let clone = null;
+        let currentSnapPos = { row: -1, col: -1 };
+
+        const maxR = Math.max(...shape.coords.map(c => c[0])) + 1;
+        const maxC = Math.max(...shape.coords.map(c => c[1])) + 1;
+        const pieceWidthPx = (maxC * 30) + ((maxC - 1) * 2);
+        const pieceHeightPx = (maxR * 30) + ((maxR - 1) * 2);
+
+        el.onpointerdown = (e) => {
+            const startX = e.clientX;
+            const startY = e.clientY;
+            clone = el.cloneNode(true);
+            clone.classList.add('dragging');
+            clone.style.left = (startX - pieceWidthPx / 2) + 'px';
+            clone.style.top = (startY - pieceHeightPx / 2) + 'px';
+            document.body.appendChild(clone);
+
+            const moveHandler = (me) => {
+                const rect = gridElement.getBoundingClientRect();
+                const x = me.clientX - rect.left;
+                const y = me.clientY - rect.top;
+                const col = Math.floor(x / TOTAL_UNIT);
+                const row = Math.floor(y / TOTAL_UNIT);
+
+                if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE) {
+                    currentSnapPos = { row, col };
+                    clone.style.left = (rect.left + (col * TOTAL_UNIT)) + 'px';
+                    clone.style.top = (rect.top + (row * TOTAL_UNIT)) + 'px';
+                    updateGhost(shape, row, col);
+                } else {
+                    currentSnapPos = { row: -1, col: -1 };
+                    clone.style.left = (me.clientX - pieceWidthPx / 2) + 'px';
+                    clone.style.top = (me.clientY - pieceHeightPx / 2) + 'px';
+                    clearGhost();
+                }
+            };
+
+            const upHandler = (ue) => {
+                document.removeEventListener('pointermove', moveHandler);
+                document.removeEventListener('pointerup', upHandler);
+                const { row, col } = currentSnapPos;
+                if (row !== -1 && canPlace(shape, row, col)) {
+                    availablePieces[index] = null;
+                    placePiece(shape, row, col);
+                    el.remove();
+                }
+                clearGhost();
+                document.body.removeChild(clone);
+            };
+
+            document.addEventListener('pointermove', moveHandler);
+            document.addEventListener('pointerup', upHandler);
+        };
+    }
+
+    function updateGhost(shape, row, col) {
+        clearGhost();
+        const isValid = canPlace(shape, row, col);
+        shape.coords.forEach(([dr, dc]) => {
+            const r = row + dr;
+            const c = col + dc;
+            if (r >= 0 && r < GRID_SIZE && c >= 0 && c < GRID_SIZE) {
+                const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+                if (cell) cell.classList.add(isValid ? 'ghost-valid' : 'ghost-invalid');
+            }
+        });
+    }
+
+    function clearGhost() {
+        document.querySelectorAll('.cell').forEach(c => c.classList.remove('ghost-valid', 'ghost-invalid'));
+    }
+
+    function canPlace(shape, row, col) {
+        return shape.coords.every(([dr, dc]) => {
+            const r = row + dr;
+            const c = col + dc;
+            return r >= 0 && r < GRID_SIZE && c >= 0 && c < GRID_SIZE && board[r][c] === null;
+        });
+    }
+
+    function placePiece(shape, row, col) {
+        shape.coords.forEach(([dr, dc]) => {
+            board[row + dr][col + dc] = shape.color;
+        });
+        updateGridUI();
+        checkLines();
+        if (availablePieces.every(p => p === null)) spawnPieces();
+        if (!canAnyPieceFit()) endGame();
+    }
+
+    function checkLines() {
+        let rowsToClear = [];
+        let colsToClear = [];
+
+        for (let r = 0; r < GRID_SIZE; r++) {
+            if (board[r].every(cell => cell !== null)) rowsToClear.push(r);
+        }
+        for (let c = 0; c < GRID_SIZE; c++) {
+            let full = true;
+            for (let r = 0; r < GRID_SIZE; r++) {
+                if (board[r][c] === null) { full = false; break; }
+            }
+            if (full) colsToClear.push(c);
+        }
+
+        const totalCleared = rowsToClear.length + colsToClear.length;
+        if (totalCleared === 0) return;
+
+        // Create the "Fall Out" animations before we clear the data
+        rowsToClear.forEach(r => {
+            for (let c = 0; c < GRID_SIZE; c++) {
+                createFallingBlock(r, c, board[r][c]);
+            }
+        });
+        colsToClear.forEach(c => {
+            for (let r = 0; r < GRID_SIZE; r++) {
+                // Avoid double-animating blocks that are part of both a row and col clear
+                if (!rowsToClear.includes(r)) {
+                    createFallingBlock(r, c, board[r][c]);
+                }
+            }
+        });
+
+        // Clear logic board
+        rowsToClear.forEach(r => {
+            for (let c = 0; c < GRID_SIZE; c++) board[r][c] = null;
+        });
+        colsToClear.forEach(c => {
+            for (let r = 0; r < GRID_SIZE; r++) board[r][c] = null;
+        });
+
+        updateScore(totalCleared * 100);
+        updateGridUI();
+    }
+
+    function createFallingBlock(row, col, color) {
+        const cellElement = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+        const rect = cellElement.getBoundingClientRect();
+
+        const fallingDiv = document.createElement('div');
+        fallingDiv.className = 'falling-block';
+        fallingDiv.style.backgroundColor = color;
+        fallingDiv.style.left = rect.left + 'px';
+        fallingDiv.style.top = rect.top + 'px';
+
+        document.body.appendChild(fallingDiv);
+
+        // Cleanup DOM after animation finishes
+        setTimeout(() => {
+            fallingDiv.remove();
+        }, 600);
+    }
+
+    function updateGridUI() {
+        const cells = document.querySelectorAll('.cell');
+        cells.forEach(cell => {
+            const r = parseInt(cell.dataset.row);
+            const c = parseInt(cell.dataset.col);
+            if (board[r][c]) {
+                cell.style.backgroundColor = board[r][c];
+                cell.classList.add('filled');
+            } else {
+                cell.style.backgroundColor = 'var(--cell-empty)';
+                cell.classList.remove('filled');
+            }
+        });
+    }
+
+    function updateScore(points) {
+        score += points;
+        scoreElement.innerText = score;
+    }
+
+    function canAnyPieceFit() {
+        return availablePieces.some(shape => {
+            if (!shape) return false;
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    if (canPlace(shape, r, c)) return true;
+                }
+            }
+            return false;
+        });
+    }
+
+    function endGame() {
+        document.getElementById('game-over').style.display = 'flex';
+        document.getElementById('final-score').innerText = score;
+    }
+
+    function resetGame() {
+        board = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(null));
+        score = 0;
+        document.getElementById('game-over').style.display = 'none';
+        init();
+    }
+
+    init();
+</script>
+</body>
+</html>
