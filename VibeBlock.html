@@ -118,7 +118,7 @@
         }
 
         .dragging {
-            opacity: 1;
+            opacity: 0.9;
             position: absolute;
             pointer-events: none;
             z-index: 1000;
@@ -126,7 +126,6 @@
             transition: none !important; 
         }
 
-        /* THE BLAST ANIMATION */
         .falling-block {
             position: absolute;
             width: 40px;
@@ -134,20 +133,12 @@
             border-radius: 4px;
             z-index: 50;
             pointer-events: none;
-            /* Use custom properties for random directions */
             animation: blastOut 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
         }
 
         @keyframes blastOut {
-            0% {
-                transform: translate(0, 0) rotate(0deg);
-                opacity: 1;
-            }
-            100% {
-                /* These variables are set dynamically in JS */
-                transform: translate(var(--dest-x), var(--dest-y)) rotate(var(--dest-rot));
-                opacity: 0;
-            }
+            0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+            100% { transform: translate(var(--dest-x), var(--dest-y)) rotate(var(--dest-rot)); opacity: 0; }
         }
     </style>
 </head>
@@ -265,6 +256,11 @@
             document.body.appendChild(clone);
 
             const moveHandler = (me) => {
+                // 1. CLONE MOVEMENT: Always fluid, never snaps
+                clone.style.left = (me.clientX - pieceWidthPx / 2) + 'px';
+                clone.style.top = (me.clientY - pieceHeightPx / 2) + 'px';
+
+                // 2. GHOST LOGIC: Still calculate the grid position for preview
                 const rect = gridElement.getBoundingClientRect();
                 const x = me.clientX - rect.left;
                 const y = me.clientY - rect.top;
@@ -273,13 +269,9 @@
 
                 if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE) {
                     currentSnapPos = { row, col };
-                    clone.style.left = (rect.left + (col * TOTAL_UNIT)) + 'px';
-                    clone.style.top = (rect.top + (row * TOTAL_UNIT)) + 'px';
                     updateGhost(shape, row, col);
                 } else {
                     currentSnapPos = { row: -1, col: -1 };
-                    clone.style.left = (me.clientX - pieceWidthPx / 2) + 'px';
-                    clone.style.top = (me.clientY - pieceHeightPx / 2) + 'px';
                     clearGhost();
                 }
             };
@@ -378,9 +370,6 @@
     function createBlastBlock(row, col, color) {
         const cellElement = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
         const rect = cellElement.getBoundingClientRect();
-        
-        // Generate random blast trajectories
-        // X can be -200px to 200px, Y is 300px to 800px, Rotation is -180 to 180deg
         const randomX = (Math.random() * 400) - 200;
         const randomY = (Math.random() * 500) + 300;
         const randomRot = (Math.random() * 360) - 180;
@@ -390,8 +379,6 @@
         blastDiv.style.backgroundColor = color;
         blastDiv.style.left = rect.left + 'px';
         blastDiv.style.top = rect.top + 'px';
-        
-        // Pass random values to CSS via custom properties
         blastDiv.style.setProperty('--dest-x', `${randomX}px`);
         blastDiv.style.setProperty('--dest-y', `${randomY}px`);
         blastDiv.style.setProperty('--dest-rot', `${randomRot}deg`);
