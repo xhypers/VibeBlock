@@ -118,14 +118,16 @@
         }
 
         .dragging {
-            opacity: 0.9;
+            opacity: 1;
             position: absolute;
             pointer-events: none;
             z-index: 1000;
-            transition: left 0.08s ease-out, top 0.08s ease-out; 
+            /* Enlargement effect */
+            transform: scale(1.2); 
+            /* Removed transitions for maximum responsiveness */
+            transition: none !important; 
         }
 
-        /* THE FALLING ANIMATION */
         .falling-block {
             position: absolute;
             width: 40px;
@@ -137,14 +139,8 @@
         }
 
         @keyframes fallOut {
-            0% {
-                transform: translateY(0) rotate(0deg);
-                opacity: 1;
-            }
-            100% {
-                transform: translateY(800px) rotate(20deg);
-                opacity: 0;
-            }
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(800px) rotate(20deg); opacity: 0; }
         }
     </style>
 </head>
@@ -270,11 +266,13 @@
 
                 if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE) {
                     currentSnapPos = { row, col };
+                    // Precise snap to grid cell top-left
                     clone.style.left = (rect.left + (col * TOTAL_UNIT)) + 'px';
                     clone.style.top = (rect.top + (row * TOTAL_UNIT)) + 'px';
                     updateGhost(shape, row, col);
                 } else {
                     currentSnapPos = { row: -1, col: -1 };
+                    // Center piece on cursor during free movement
                     clone.style.left = (me.clientX - pieceWidthPx / 2) + 'px';
                     clone.style.top = (me.clientY - pieceHeightPx / 2) + 'px';
                     clearGhost();
@@ -352,22 +350,15 @@
         const totalCleared = rowsToClear.length + colsToClear.length;
         if (totalCleared === 0) return;
 
-        // Create the "Fall Out" animations before we clear the data
         rowsToClear.forEach(r => {
-            for (let c = 0; c < GRID_SIZE; c++) {
-                createFallingBlock(r, c, board[r][c]);
-            }
+            for (let c = 0; c < GRID_SIZE; c++) createFallingBlock(r, c, board[r][c]);
         });
         colsToClear.forEach(c => {
             for (let r = 0; r < GRID_SIZE; r++) {
-                // Avoid double-animating blocks that are part of both a row and col clear
-                if (!rowsToClear.includes(r)) {
-                    createFallingBlock(r, c, board[r][c]);
-                }
+                if (!rowsToClear.includes(r)) createFallingBlock(r, c, board[r][c]);
             }
         });
 
-        // Clear logic board
         rowsToClear.forEach(r => {
             for (let c = 0; c < GRID_SIZE; c++) board[r][c] = null;
         });
@@ -382,19 +373,13 @@
     function createFallingBlock(row, col, color) {
         const cellElement = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
         const rect = cellElement.getBoundingClientRect();
-
         const fallingDiv = document.createElement('div');
         fallingDiv.className = 'falling-block';
         fallingDiv.style.backgroundColor = color;
         fallingDiv.style.left = rect.left + 'px';
         fallingDiv.style.top = rect.top + 'px';
-
         document.body.appendChild(fallingDiv);
-
-        // Cleanup DOM after animation finishes
-        setTimeout(() => {
-            fallingDiv.remove();
-        }, 600);
+        setTimeout(() => { fallingDiv.remove(); }, 600);
     }
 
     function updateGridUI() {
