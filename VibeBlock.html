@@ -9,7 +9,7 @@
     <title>VibeBlock</title>
     <style>
         :root {
-            --bg-color: #121213;
+            --bg-color: #000000;
             --grid-bg: #1a1a1c;
             --cell-empty: #2c2c30;
             --accent-color: #4f46e5;
@@ -122,7 +122,7 @@
             position: absolute;
             pointer-events: none;
             z-index: 1000;
-            transform: scale(1.5); 
+            transform: scale(1.7); 
             transition: none !important; 
         }
 
@@ -171,6 +171,12 @@
         { color: '#f59e0b', coords: [[0,0], [0,1], [1,0], [1,1]] },
         { color: '#8b5cf6', coords: [[0,0], [0,1], [0,2], [1,0]] },
         { color: '#ec4899', coords: [[0,0], [0,1], [1,1], [1,2]] },
+        { color: '#fab861', coords: [[0,0], [0,1], [1,1], [0,2]] },
+        { color: '#e061fa', coords: [[0,0], [0,1], [0,2], [1,2]] },
+        { color: '#fa617b', coords: [[0,0], [0,1], [0,2], [1,0], [1,1] , [1,2]] },
+        { color: '#616efa', coords: [[0,0], [0,1], [1,0], [1,1], [2,0] , [2,1]] },
+        { color: '#61faa9', coords: [[0,0], [0,1], [0,2], [0,3], [0,4]] },
+        { color: '#61faa9', coords: [[0,0], [1,0], [2,0], [3,0], [4,0]] },
     ];
 
     let score = 0;
