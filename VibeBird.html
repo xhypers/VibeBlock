@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="default">
+	<meta name="apple-mobile-web-app-title" content="VibeBird">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VibeBird</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #222;
+            font-family: 'Arial', sans-serif;
+        }
+
+        #game-container {
+            position: relative;
+        }
+
+        canvas {
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            background-color: #70c5ce;
+            display: block;
+        }
+
+        /* The Game Over Overlay */
+        #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 320px; /* Match canvas width */
+            height: 480px; /* Match canvas height */
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        #game-over-screen h1 {
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        #final-score {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        #restart-btn {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            background-color: #f7e61c;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: transform 0.1s;
+        }
+
+        #restart-btn:hover {
+            transform: scale(1.1);
+            background-color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <!-- Game Over UI -->
+        <div id="game-over-screen">
+            <h1>GAME OVER</h1>
+            <div id="final-score">Score: 0</div>
+            <button id="restart-btn">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const restartBtn = document.getElementById('restart-btn');
+
+        canvas.width = 320;
+        canvas.height = 480;
+
+        let frames = 0;
+        let score = 0;
+        let gameActive = false;
+        let isGameOver = false;
+
+        const bird = {
+            x: 50,
+            y: 150,
+            w: 34,
+            h: 24,
+            gravity: 0.25,
+            jump: 4.6,
+            velocity: 0,
+            draw() {
+                ctx.fillStyle = "#f7e61c";
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                ctx.fillStyle = "black";
+                ctx.fillRect(this.x + 20, this.y + 5, 5, 5);
+            },
+            update() {
+                if (!gameActive || isGameOver) return;
+                this.velocity += this.gravity;
+                this.y += this.velocity;
+                if (this.y + this.h >= canvas.height || this.y <= 0) {
+                    gameOver();
+                }
+            },
+            flap() {
+                if (isGameOver) return;
+                this.velocity = -this.jump;
+            }
+        };
+
+        const pipes = {
+            position: [],
+            gap: 120,
+            width: 50,
+            speed: 2,
+            draw() {
+                ctx.fillStyle = "#73bf2e";
+                for (let i = 0; i < this.position.length; i++) {
+                    let p = this.position[i];
+                    ctx.fillRect(p.x, 0, this.width, p.top);
+                    ctx.fillRect(p.x, p.top + this.gap, this.width, canvas.height - (p.top + this.gap));
+                }
+            },
+            update() {
+                if (!gameActive || isGameOver) return;
+
+                if (frames % 100 === 0) {
+                    this.position.push({
+                        x: canvas.width,
+                        top: Math.floor(Math.random() * (canvas.height - this.gap - 100)) + 50
+                    });
+                }
+
+                for (let i = 0; i < this.position.length; i++) {
+                    let p = this.position[i];
+                    p.x -= this.speed;
+
+                    if (bird.x + bird.w > p.x && bird.x < p.x + this.width) {
+                        if (bird.y < p.top || bird.y + bird.h > p.top + this.gap) {
+                            gameOver();
+                        }
+                    }
+                    if (p.x + this.width === bird.x) {
+                        score++;
+                    }
+                    if (p.x + this.width < 0) {
+                        this.position.shift();
+                    }
+                }
+            }
+        };
+
+        function gameOver() {
+            isGameOver = true;
+            gameActive = false;
+            finalScoreDisplay.innerText = "Score: " + score;
+            gameOverScreen.style.display = "flex"; // Show the overlay
+        }
+
+        function resetGame() {
+            bird.y = 150;
+            bird.velocity = 0;
+            pipes.position = [];
+            score = 0;
+            frames = 0;
+            isGameOver = false;
+            gameOverScreen.style.display = "none"; // Hide the overlay
+        }
+
+        // Input Handling
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                if (!gameActive && !isGameOver) gameActive = true;
+                bird.flap();
+            }
+        });
+
+        canvas.addEventListener('mousedown', () => {
+            if (!gameActive && !isGameOver) gameActive = true;
+            bird.flap();
+        });
+
+        restartBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent click from triggering bird flap
+            resetGame();
+        });
+
+        function drawScore() {
+            ctx.fillStyle = "white";
+            ctx.font = "30px Arial";
+            ctx.fillText(`Score: ${score}`, 10, 40);
+            
+            if (!gameActive && !isGameOver) {
+                ctx.fillStyle = "rgba(0,0,0,0.5)";
+                ctx.fillRect(0,0, canvas.width, canvas.height);
+                ctx.fillStyle = "white";
+                ctx.font = "20px Arial";
+                ctx.fillText("Press to Start", 40, canvas.height/2);
+            }
+        }
+
+        function loop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            pipes.draw();
+            pipes.update();
+            bird.draw();
+            bird.update();
+            drawScore();
+            frames++;
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
