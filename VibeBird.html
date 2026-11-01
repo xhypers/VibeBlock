@@ -17,7 +17,9 @@
             height: 100vh;
             background-color: #222;
             font-family: 'Arial', sans-serif;
-            touch-action: manipulation;
+            /* Prevents the whole page from bouncing/scrolling on mobile */
+            position: fixed; 
+            width: 100%;
         }
 
         #game-container {
@@ -25,52 +27,42 @@
         }
 
         canvas {
+            border: 4px solid #fff;
             box-shadow: 0 0 20px rgba(0,0,0,0.5);
             background-color: #70c5ce;
             display: block;
+            /* CRITICAL: Disables double-tap to zoom on this element */
+            touch-action: manipulation; 
         }
 
-        /* The Game Over Overlay */
         #game-over-screen {
             position: absolute;
             top: 0;
             left: 0;
-            width: 320px; /* Match canvas width */
-            height: 480px; /* Match canvas height */
+            width: 320px;
+            height: 480px;
             background-color: rgba(0, 0, 0, 0.7);
-            display: none; /* Hidden by default */
+            display: none;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             color: white;
             text-align: center;
+            border: 4px solid #fff;
             box-sizing: border-box;
+            z-index: 10;
         }
 
-        #game-over-screen h1 {
-            margin-bottom: 10px;
-            font-size: 32px;
-        }
-
-        #final-score {
-            font-size: 24px;
-            margin-bottom: 20px;
-        }
-
+        #game-over-screen h1 { margin-bottom: 10px; font-size: 32px; }
+        #final-score { font-size: 24px; margin-bottom: 20px; }
         #restart-btn {
-            padding: 10px 20px;
+            padding: 15px 30px; /* Larger button for easier tapping */
             font-size: 18px;
             cursor: pointer;
             background-color: #f7e61c;
             border: none;
             border-radius: 5px;
             font-weight: bold;
-            transition: transform 0.1s;
-        }
-
-        #restart-btn:hover {
-            transform: scale(1.1);
-            background-color: #fff;
         }
     </style>
 </head>
@@ -78,8 +70,6 @@
 
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
-        
-        <!-- Game Over UI -->
         <div id="game-over-screen">
             <h1>GAME OVER</h1>
             <div id="final-score">Score: 0</div>
@@ -103,13 +93,7 @@
         let isGameOver = false;
 
         const bird = {
-            x: 50,
-            y: 150,
-            w: 34,
-            h: 24,
-            gravity: 0.25,
-            jump: 4.6,
-            velocity: 0,
+            x: 50, y: 150, w: 34, h: 24, gravity: 0.25, jump: 4.6, velocity: 0,
             draw() {
                 ctx.fillStyle = "#f7e61c";
                 ctx.fillRect(this.x, this.y, this.w, this.h);
@@ -120,9 +104,7 @@
                 if (!gameActive || isGameOver) return;
                 this.velocity += this.gravity;
                 this.y += this.velocity;
-                if (this.y + this.h >= canvas.height || this.y <= 0) {
-                    gameOver();
-                }
+                if (this.y + this.h >= canvas.height || this.y <= 0) gameOver();
             },
             flap() {
                 if (isGameOver) return;
@@ -131,10 +113,7 @@
         };
 
         const pipes = {
-            position: [],
-            gap: 120,
-            width: 50,
-            speed: 2,
+            position: [], gap: 120, width: 50, speed: 2,
             draw() {
                 ctx.fillStyle = "#73bf2e";
                 for (let i = 0; i < this.position.length; i++) {
@@ -145,29 +124,17 @@
             },
             update() {
                 if (!gameActive || isGameOver) return;
-
                 if (frames % 100 === 0) {
-                    this.position.push({
-                        x: canvas.width,
-                        top: Math.floor(Math.random() * (canvas.height - this.gap - 100)) + 50
-                    });
+                    this.position.push({ x: canvas.width, top: Math.floor(Math.random() * (canvas.height - this.gap - 100)) + 50 });
                 }
-
                 for (let i = 0; i < this.position.length; i++) {
                     let p = this.position[i];
                     p.x -= this.speed;
-
                     if (bird.x + bird.w > p.x && bird.x < p.x + this.width) {
-                        if (bird.y < p.top || bird.y + bird.h > p.top + this.gap) {
-                            gameOver();
-                        }
+                        if (bird.y < p.top || bird.y + bird.h > p.top + this.gap) gameOver();
                     }
-                    if (p.x + this.width === bird.x) {
-                        score++;
-                    }
-                    if (p.x + this.width < 0) {
-                        this.position.shift();
-                    }
+                    if (p.x + this.width === bird.x) score++;
+                    if (p.x + this.width < 0) this.position.shift();
                 }
             }
         };
@@ -176,34 +143,44 @@
             isGameOver = true;
             gameActive = false;
             finalScoreDisplay.innerText = "Score: " + score;
-            gameOverScreen.style.display = "flex"; // Show the overlay
+            gameOverScreen.style.display = "flex";
         }
 
         function resetGame() {
-            bird.y = 150;
-            bird.velocity = 0;
-            pipes.position = [];
-            score = 0;
-            frames = 0;
-            isGameOver = false;
-            gameOverScreen.style.display = "none"; // Hide the overlay
+            bird.y = 150; bird.velocity = 0; pipes.position = [];
+            score = 0; frames = 0; isGameOver = false;
+            gameOverScreen.style.display = "none";
         }
 
-        // Input Handling
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') {
-                if (!gameActive && !isGameOver) gameActive = true;
-                bird.flap();
-            }
-        });
-
-        canvas.addEventListener('mousedown', () => {
+        // --- FIXED INPUT HANDLING START ---
+        
+        function handleInput(e) {
+            // Prevent the browser from performing default actions (like scrolling or zooming)
+            if (e) e.preventDefault(); 
+            
             if (!gameActive && !isGameOver) gameActive = true;
             bird.flap();
+        }
+
+        // Keyboard for Desktop
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') handleInput(e);
         });
 
+        // Mouse for Desktop
+        canvas.addEventListener('mousedown', (e) => {
+            handleInput(e);
+        });
+
+        // Touch for Mobile - This is the key fix!
+        canvas.addEventListener('touchstart', (e) => {
+            handleInput(e);
+        }, { passive: false }); // passive: false allows preventDefault() to work
+
+        // --- FIXED INPUT HANDLING END ---
+
         restartBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent click from triggering bird flap
+            e.stopPropagation();
             resetGame();
         });
 
@@ -211,27 +188,23 @@
             ctx.fillStyle = "white";
             ctx.font = "30px Arial";
             ctx.fillText(`Score: ${score}`, 10, 40);
-            
             if (!gameActive && !isGameOver) {
                 ctx.fillStyle = "rgba(0,0,0,0.5)";
                 ctx.fillRect(0,0, canvas.width, canvas.height);
                 ctx.fillStyle = "white";
                 ctx.font = "20px Arial";
-                ctx.fillText("Press to Start", 40, canvas.height/2);
+                ctx.fillText("Press SPACE or TAP to Start", 40, canvas.height/2);
             }
         }
 
         function loop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            pipes.draw();
-            pipes.update();
-            bird.draw();
-            bird.update();
+            pipes.draw(); pipes.update();
+            bird.draw(); bird.update();
             drawScore();
             frames++;
             requestAnimationFrame(loop);
         }
-
         loop();
     </script>
 </body>
